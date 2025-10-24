@@ -1,0 +1,3 @@
+*.csv
+cnn_lstm/
+05.TrainModel_v2.ipynb
