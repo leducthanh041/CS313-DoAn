@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Crawl EVN hồ chứa thủy điện:
-- Thời gian: 01/01/2022 -> 31/12/2024
-- Khung giờ: 02:00, 05:00, 08:00, 11:00, 14:00, 17:00, 20:00, 23:00
-- GET: td=dd/MM/yyyy HH:mm & vm=& lv=& hc=2-3-4-76-77
-- Làm sạch nhẹ (cắt 'đồng bộ lúc...', xóa header vùng, thêm năm cho 'dd/MM HH:mm').
-- Theo dõi tiến độ bằng tqdm.
-- KHÔNG thêm cột td_query vào CSV.
+Crawl EVN hồ chứa thủy điện (fix lỗi 'DataFrame' object has no attribute 'str'):
+- Ghi đè chỉ cột thời gian về mốc crawl
+- Xóa header vùng, cắt 'đồng bộ lúc...' trong cột "Tên hồ"
+- tqdm, không thêm td_query
 """
 
 import re
@@ -20,64 +17,92 @@ from typing import List, Iterable, Optional
 from tqdm.auto import tqdm
 
 BASE_URL = "https://hochuathuydien.evn.com.vn/PageHoChuaThuyDienEmbedEVN.aspx"
-OUT_CSV = "evn_thuydien_2022_2024.csv"
-HC_PARAM = "2-3-4-76-77"
+OUT_CSV = "data_thuydien.csv"
+HC_PARAM = "3"  # hoặc "2-3-4-76-77"
 HOURS_PER_DAY = [2, 5, 8, 11, 14, 17, 20, 23]
 
-# ============ Regex & helpers ============
-RE_DDMM_HHMM = re.compile(r"\b(?P<dm>\d{2}/\d{2})\s+(?P<hm>\d{2}:\d{2})\b")
+# Regex thời gian: dd/MM[/yyyy] HH:mm
+RE_ANY_TS = re.compile(r"\b(?P<dd>\d{2})/(?P<mm>\d{2})(?:/(?P<yyyy>\d{4}))?\s+(?P<hh>\d{2}):(?P<min>\d{2})\b")
+# Regex cắt "đồng bộ lúc ..."
 RE_CUT_SYNC_TAIL = re.compile(r"(?i)\s*đồng\s*bộ\s*lúc:.*$")
 
+# Gợi ý tên cột thời gian hay gặp
+TIME_COL_NAME_HINTS = {"thời điểm", "thoi diem", "thoi_điểm", "thoi_diem", "thoidiem", "thời_điểm"}
+
 def normalize_ws(x):
+    if pd.isna(x):
+        return ""
     if not isinstance(x, str):
-        return x
+        x = str(x)
     return " ".join(x.split()).strip()
 
-def add_year_to_cell(value: str, year: int) -> str:
-    if not isinstance(value, str) or not value:
-        return value
-    value = normalize_ws(value)
-    def _dmhm(m):  # dd/MM HH:mm -> dd/MM/yyyy HH:mm
-        return f"{m.group('dm')}/{year} {m.group('hm')}"
-    return RE_DDMM_HHMM.sub(_dmhm, value)
+def override_ts_to_base_in_series(s: pd.Series, base_dt: datetime) -> pd.Series:
+    """Chỉ thay thời gian trong Series (đã xác định là cột thời gian) sang base_dt."""
+    target = base_dt.strftime("%d/%m/%Y %H:%M")
+    # replace bằng regex trên toàn bộ Series (an toàn hơn .str nếu có NaN)
+    return s.astype(str).replace(RE_ANY_TS, target, regex=True).map(lambda v: normalize_ws(v))
 
-def cut_sync_tail(value: str) -> str:
-    if not isinstance(value, str) or not value:
-        return value
-    value = normalize_ws(value)
-    value = RE_CUT_SYNC_TAIL.sub("", value)
-    return value.strip(" -–—|").strip()
+def detect_time_columns(df: pd.DataFrame) -> List[str]:
+    """Tự phát hiện cột thời gian:
+       - Ưu tiên tên cột có gợi ý (time hints)
+       - Hoặc tỉ lệ giá trị khớp pattern thời gian >= 0.5"""
+    time_cols = []
+    for col in df.columns:
+        col_lc = str(col).strip().lower()
+        if any(hint in col_lc for hint in TIME_COL_NAME_HINTS):
+            time_cols.append(col)
+            continue
+        series = df[col].astype(str).fillna("")
+        # tỉ lệ giá trị khớp pattern
+        matches = series.str.contains(RE_ANY_TS)
+        # nếu series toàn "" sẽ trả False => match_ratio 0
+        match_ratio = matches.mean() if len(matches) > 0 else 0.0
+        if match_ratio >= 0.5:
+            time_cols.append(col)
+    return time_cols
+
+def cut_sync_tail_in_tenho_series(s: pd.Series) -> pd.Series:
+    """Cắt 'đồng bộ lúc...' trong Series (chỉ dùng cho cột 'Tên hồ')."""
+    # dùng replace regex trực tiếp (an toàn với NaN)
+    return s.astype(str).replace(RE_CUT_SYNC_TAIL, "", regex=True).map(lambda v: normalize_ws(v)).map(lambda v: v.strip(" -–—|"))
 
 def drop_region_header_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """Loại các dòng header vùng (vd. toàn 'Tây Bắc Bộ')."""
+    """Loại dòng header vùng (vd. 'Tây Bắc Bộ'): nhiều ô text không rỗng nhưng tất cả giống nhau."""
     def is_region_row(row: pd.Series) -> bool:
         vals = []
         for v in row.values:
-            if isinstance(v, str):
-                s = normalize_ws(v)
-                if s:
-                    vals.append(s)
+            if pd.isna(v):
+                continue
+            t = normalize_ws(v)
+            if t:
+                vals.append(t)
         return len(vals) >= 2 and len(set(vals)) == 1
     mask = df.apply(is_region_row, axis=1)
-    return df[~mask].reset_index(drop=True)
+    return df.loc[~mask].reset_index(drop=True)
 
 def drop_note_rows(df: pd.DataFrame) -> pd.DataFrame:
     """Xoá dòng 'Chú thích ký hiệu' nếu còn."""
-    mask = df.astype(str).apply(
-        lambda col: col.str.fullmatch(r"(?i)\s*chú thích ký hiệu\s*"), axis=0
-    ).any(axis=1)
-    return df[~mask].reset_index(drop=True)
+    # Tạo DataFrame boolean: từng ô có khớp exact phrase "chú thích ký hiệu" (case-insensitive) không
+    df_str = df.fillna("").astype(str).applymap(lambda v: v.strip().lower())
+    mask_row = df_str.apply(lambda row: any(cell == "chú thích ký hiệu" for cell in row), axis=1)
+    return df.loc[~mask_row].reset_index(drop=True)
 
-def clean_dataframe(df: pd.DataFrame, year: int) -> pd.DataFrame:
-    # thêm năm + cắt 'Đồng bộ lúc: ...'
-    df = df.applymap(lambda x: add_year_to_cell(x, year) if isinstance(x, str) else x)
-    df = df.applymap(lambda x: cut_sync_tail(x) if isinstance(x, str) else x)
-    # bỏ header vùng + chú thích
+def clean_dataframe_only_time_cols(df: pd.DataFrame, base_dt: datetime) -> pd.DataFrame:
+    # 1) CHỈ ghi đè ở các cột thời gian (phát hiện tự động)
+    time_cols = detect_time_columns(df)
+    for c in time_cols:
+        df[c] = override_ts_to_base_in_series(df[c], base_dt)
+
+    # 2) Cắt 'đồng bộ lúc...' CHỈ trong cột "Tên hồ"
+    if "Tên hồ" in df.columns:
+        df["Tên hồ"] = cut_sync_tail_in_tenho_series(df["Tên hồ"])
+
+    # 3) Xóa dòng header vùng + chú thích
     df = drop_region_header_rows(df)
     df = drop_note_rows(df)
     return df
 
-# ============ HTTP ============
+# ================= HTTP =================
 def requests_session() -> requests.Session:
     s = requests.Session()
     s.headers.update({
@@ -105,7 +130,7 @@ def fetch_html(session: requests.Session, date_time_str: str, hc: str, pbar: tqd
             time.sleep(wait)
     raise RuntimeError(f"GET thất bại sau retry: td={date_time_str}")
 
-# ============ Parse ============
+# ================= Parse =================
 def parse_all_tables(html: str) -> List[pd.DataFrame]:
     try:
         dfs = pd.read_html(html)
@@ -113,6 +138,7 @@ def parse_all_tables(html: str) -> List[pd.DataFrame]:
             return dfs
     except ValueError:
         pass
+
     soup = BeautifulSoup(html, "html.parser")
     dfs: List[pd.DataFrame] = []
     for tb in soup.find_all("table"):
@@ -140,9 +166,13 @@ def crawl_one_timestamp(session: requests.Session, dt: datetime, hc: str, pbar: 
         pbar.write(f"[INFO] Không thấy bảng: {td_str}")
         return None
     df_all = pd.concat(dfs, ignore_index=True, sort=False)
-    df_all = clean_dataframe(df_all, dt.year)
-    df_all = df_all.drop_duplicates()  # khử trùng trong 1 mốc (giữ nguyên kiểu dữ liệu)
-    # KHÔNG thêm cột 'td_query' vào dữ liệu
+
+    # Chỉ ghi đè cột thời gian về đúng mốc dt + làm sạch nhẹ
+    df_all = clean_dataframe_only_time_cols(df_all, dt)
+
+    # Khử trùng trong 1 mốc (một số bảng có thể lặp dòng)
+    df_all = df_all.drop_duplicates()
+
     return df_all
 
 # ============ Lập lịch thời điểm ============
@@ -177,7 +207,7 @@ def crawl_range_to_csv(
         out_path.unlink()
 
     batch = []
-    seen_td = set()  # tránh gọi trùng cùng 1 mốc thời gian
+    seen_td = set()  # bảo vệ gọi trùng
 
     with tqdm(total=len(dts), desc="Crawling EVN", unit="ts") as pbar:
         for i, dt in enumerate(dts, 1):
@@ -198,10 +228,9 @@ def crawl_range_to_csv(
             except Exception as e:
                 pbar.write(f"[ERROR] {td_key} -> {e}")
 
-            # Ghi tạm theo lô
+            # Ghi theo lô
             if len(batch) >= flush_every:
                 combined = pd.concat(batch, ignore_index=True, sort=False)
-                # KHÔNG drop_duplicates ở cấp batch để không xoá nhầm các dòng giống nhau giữa các mốc khác nhau
                 if out_path.exists():
                     combined.to_csv(out_path, mode="a", header=False, index=False, encoding="utf-8-sig")
                 else:
@@ -224,15 +253,15 @@ def crawl_range_to_csv(
 
     print(f"[DONE] Hoàn tất crawl. File: {out_path.resolve()}")
 
-# ============ Run ============
+# ============ Run (GỢI Ý TEST) ============
 if __name__ == "__main__":
     crawl_range_to_csv(
-        start_date="01/01/2022",
-        end_date="17/10/2025",
-        hours=[2,5,8,11,14,17,20,23],
-        hc="2-3-4-76-77",
+        start_date="1/9/2025",
+        end_date="24/10/2025",
+        hours=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],                 # ví dụ test 00:00
+        hc=HC_PARAM,
         out_csv="data_thuydien.csv",
-        flush_every=120,
-        polite_delay=0,
+        flush_every=1,             # ghi ngay mỗi mốc để dễ kiểm tra
+        polite_delay=0.0,
         overwrite=True
     )
