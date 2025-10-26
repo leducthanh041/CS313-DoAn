@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EDA dữ liệu thuỷ điện</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='eda.css') }}" />
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>EDA dữ liệu thuỷ điện</h1>
+      <div class="meta">
+        Nguồn: {{ csv_path }} |
+        Dòng: {{ info.rows }} |
+        Cột: {{ info.cols }} |
+        Thời gian: {{ info.start }} → {{ info.end }} |
+        Bước giờ gợi ý: {{ info.freq_hint_hours }}
+      </div>
+      <nav>
+        <a href="?tab=uni"   class="{{ 'active' if tab=='uni'   else '' }}">Phân tích đơn biến</a>
+        <a href="?tab=multi" class="{{ 'active' if tab=='multi' else '' }}">Phân tích đa biến</a>
+      </nav>
+    </header>
+
+    {# =========================
+       TAB: ĐƠN BIẾN
+       ========================= #}
+    {% if tab == 'uni' %}
+    <section class="panel">
+      <form method="get" class="controls">
+        <input type="hidden" name="tab" value="uni" />
+        <label>
+          Biến:
+          <select name="uni_var">
+            {% for c in numeric_cols %}
+              <option value="{{c}}" {% if c==uni_var %}selected{% endif %}>{{c}}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Resample:
+          <select name="uni_resample">
+            <option value="H" {% if uni_resample=='H' %}selected{% endif %}>H (giờ)</option>
+            <option value="D" {% if uni_resample=='D' %}selected{% endif %}>D (ngày)</option>
+          </select>
+        </label>
+        <label>
+          Bins histogram:
+          <input type="number" min="5" max="200" name="uni_bins" value="{{uni_bins}}" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="uni_by_month" value="1" {% if uni_by_month==1 %}checked{% endif %}/> Boxplot theo tháng
+        </label>
+        <button type="submit">Cập nhật</button>
+      </form>
+
+      <div class="stats">
+        {% if uni_payload is defined and uni_payload.summary is defined %}
+        <h3>Thống kê tóm tắt</h3>
+        <div class="grid2">
+          <div>
+            <ul>
+              <li>count: {{ uni_payload.summary.count }}</li>
+              <li>missing: {{ uni_payload.summary.missing }}</li>
+              <li>mean: {{ '%.4f'|format(uni_payload.summary.mean) }}</li>
+              <li>std: {{ '%.4f'|format(uni_payload.summary.std) }}</li>
+              <li>min/median/max:
+                {{ '%.4f'|format(uni_payload.summary.min) }} /
+                {{ '%.4f'|format(uni_payload.summary.median) }} /
+                {{ '%.4f'|format(uni_payload.summary.max) }}
+              </li>
+            </ul>
+          </div>
+          <div>
+            {% if uni_payload.month_stats is defined and uni_payload.month_stats %}
+            <table>
+              <thead><tr><th>Tháng</th><th>Count</th><th>Median</th><th>LB</th><th>UB</th></tr></thead>
+              <tbody>
+                {% for r in uni_payload.month_stats %}
+                <tr>
+                  <td>{{ r.month }}</td>
+                  <td>{{ r['count'] }}</td>
+                  <td>{{ '%.3f'|format(r['month_median']) }}</td>
+                  <td>{{ '%.3f'|format(r['lb']) }}</td>
+                  <td>{{ '%.3f'|format(r['ub']) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>      
+
+        <!-- Hiển thị ảnh PNG tạo sẵn -->
+        {% if uni_plot_file %}
+        <section class="panel">
+        <h3>Biểu đồ đơn biến (PNG)</h3>
+        <figure class="plot-card">
+            <img
+            src="{{ url_for('static', filename='eda_plots/' ~ uni_plot_file) }}?v={{ uni_var }}-{{ uni_bins }}-{{ uni_resample }}"
+            alt="Plot {{ uni_var }}"
+            loading="lazy"
+            style="max-width:640px; height:auto; border-radius:8px;"
+            />
+            <figcaption style="font-size:13px; color:#cbd5e1; margin-top:6px;">
+            {{ uni_var }}
+            </figcaption>
+        </figure>
+        </section>
+        {% else %}
+        <p style="opacity:.7">Không có dữ liệu để vẽ cho biến <b>{{ uni_var }}</b>.</p>
+        {% endif %}
+    </section>
+
+    <!-- Univariate JSON cho JS
+    <script id="uni-json" type="application/json">
+        {{ (uni_js | default({})) | tojson }}
+    </script>
+    <script>
+      const UNI = JSON.parse(document.getElementById('uni-json').textContent || '{}');
+      if (UNI && UNI.fig_ts)    Plotly.newPlot('fig_ts',   UNI.fig_ts.data,   UNI.fig_ts.layout,   {responsive:true});
+      if (UNI && UNI.fig_hist)  Plotly.newPlot('fig_hist', UNI.fig_hist.data, UNI.fig_hist.layout, {responsive:true});
+      if (UNI && UNI.fig_month) Plotly.newPlot('fig_month',UNI.fig_month.data,UNI.fig_month.layout,{responsive:true});
+    </script> -->
+
+    {# =========================
+       TAB: ĐA BIẾN
+       ========================= #}
+    {% elif tab == 'multi' %}
+    <section class="panel">
+      <form method="get" class="controls">
+        <input type="hidden" name="tab" value="multi" />
+        <label>
+          Chọn biến (giữ Ctrl/⌘ để chọn nhiều):
+          <select name="multi_cols" multiple size="10">
+            {% for c in numeric_cols %}
+              <option value="{{c}}" {% if c in multi_cols_selected %}selected{% endif %}>{{c}}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Target:
+          <select name="target">
+            {% for c in numeric_cols %}
+              <option value="{{c}}" {% if c==target %}selected{% endif %}>{{c}}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Corr method:
+          <select name="corr_method">
+            <option value="pearson"  {% if corr_method=='pearson'  %}selected{% endif %}>pearson</option>
+            <option value="spearman" {% if corr_method=='spearman' %}selected{% endif %}>spearman</option>
+            <option value="kendall"  {% if corr_method=='kendall'  %}selected{% endif %}>kendall</option>
+          </select>
+        </label>
+        <label>
+          Lag max (giờ):
+          <input type="number" min="0" max="240" step="6" name="lag_hours_max" value="{{lag_hours_max}}" />
+        </label>
+        <label>
+          Bước lag (giờ):
+          <input type="number" min="1" max="24" step="1" name="lag_step" value="{{lag_step}}" />
+        </label>
+        <button type="submit">Cập nhật</button>
+      </form>
+
+        {% if tab == 'multi' %}
+            {% if multi_stats %}
+            <section class="panel">
+            <h3>Số liệu thống kê (đa biến)</h3>
+        
+            <div class="grid2">
+                <div>
+                <ul>
+                    <li>Dòng (n): {{ multi_stats.n_rows }}</li>
+                    <li>Số biến được chọn: {{ multi_stats.n_cols }}</li>
+                    <li>Biến: {{ multi_stats.columns | join(', ') }}</li>
+                    <li>Target: <code>{{ target }}</code> &nbsp;|&nbsp; Corr method: <code>{{ corr_method }}</code></li>
+                </ul>
+        
+                {% if multi_stats.corr_with_target %}
+                <h4>Corr với target (|corr| giảm dần)</h4>
+                <table>
+                    <thead><tr><th>Biến</th><th>corr</th><th>|corr|</th></tr></thead>
+                    <tbody>
+                    {% for r in multi_stats.corr_with_target %}
+                        <tr>
+                        <td>{{ r.var }}</td>
+                        <td>{{ '%.3f'|format(r.corr) }}</td>
+                        <td>{{ '%.3f'|format(r.abs_corr) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+                </div>
+        
+                <div>
+                {% if multi_stats.missing %}
+                <h4>Thiếu dữ liệu</h4>
+                <table>
+                    <thead><tr><th>Biến</th><th>Missing</th><th>%</th></tr></thead>
+                    <tbody>
+                    {% for r in multi_stats.missing %}
+                        <tr>
+                        <td>{{ r.col }}</td>
+                        <td>{{ r.missing }}</td>
+                        <td>{{ '%.2f'|format(r.missing_pct) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+                </div>
+            </div>
+        
+            {% if multi_stats.corr_matrix %}
+            <h4>Ma trận tương quan (giới hạn {{ multi_stats.corr_matrix.columns|length }} biến)</h4>
+            <div class="table-wrap">
+                <table>
+                <thead>
+                    <tr>
+                    <th></th>
+                    {% for c in multi_stats.corr_matrix.columns %}
+                        <th>{{ c }}</th>
+                    {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row_idx in range(multi_stats.corr_matrix.rows|length) %}
+                    <tr>
+                        <th>{{ multi_stats.corr_matrix.columns[row_idx] }}</th>
+                        {% for val in multi_stats.corr_matrix.rows[row_idx] %}
+                        <td>{{ '%.3f'|format(val) }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                </table>
+            </div>
+            {% endif %}
+        
+            {# --- THAY THẾ PHẦN TÓM TẮT CŨ BẰNG PHẦN NÀY --- #}
+            {% if multi_stats.target_by_month_per_year %}
+            <h4>Tóm tắt target theo tháng (cho từng năm)</h4>
+
+            {% for y in multi_stats.target_by_month_per_year %}
+                <h5>Năm {{ y.year }}</h5>
+                {% if y.rows and y.rows|length > 0 %}
+                <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Tháng</th>
+                        <th>Count</th>
+                        <th>Median</th>
+                        <th>Q25</th>
+                        <th>Q75</th>
+                        <th>LB</th>
+                        <th>UB</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for r in y.rows %}
+                    <tr>
+                        <td>{{ r.month }}</td>
+                        <td>{{ r.count }}</td>
+                        <td>{{ '%.3f'|format(r.median) }}</td>
+                        <td>{{ '%.3f'|format(r.q25) }}</td>
+                        <td>{{ '%.3f'|format(r.q75) }}</td>
+                        <td>{{ '%.3f'|format(r.lb) }}</td>
+                        <td>{{ '%.3f'|format(r.ub) }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                {% else %}
+                <p style="opacity:.7">Năm {{ y.year }} không có đủ dữ liệu để tóm tắt theo tháng.</p>
+                {% endif %}
+                {% if not loop.last %}<hr/>{% endif %}
+            {% endfor %}
+            {% endif %}
+            {# --- HẾT PHẦN THAY THẾ --- #}
+            </section>
+            {% endif %}
+
+            {% if multi_corr_file %}
+            <section class="panel">
+                <h3>Correlation heatmap (PNG)</h3>
+                <figure class="plot-card">
+                <img
+                    src="{{ url_for('static', filename='eda_plots/' ~ multi_corr_file) }}?v={{ '-'.join(multi_cols_selected) }}-{{ corr_method }}"
+                    alt="Correlation heatmap"
+                    loading="lazy"
+                    style="max-width:820px; height:auto; border-radius:8px;"
+                />
+                <figcaption>
+                    Biến đã chọn: {{ ', '.join(multi_cols_selected) }} &nbsp;|&nbsp; method={{ corr_method }}
+                </figcaption>
+                </figure>
+            </section>
+            {% else %}
+                <p style="opacity:.7">
+                Chưa đủ biến numeric để tính tương quan (cần ≥ 2 biến). Hãy chọn thêm trong danh sách.
+                </p>
+            {% endif %}
+
+            {% if target_box_files %}
+                <section class="panel">
+                    <h3>Phân phối theo tháng/giờ theo từng năm — target: <code>{{ target }}</code></h3>
+                    <div class="plot-grid">
+                    {% for img in target_box_files %}
+                        <figure class="plot-card">
+                        <img
+                            src="{{ url_for('static', filename='eda_plots/' ~ img) }}?v={{ target }}"
+                            alt="{{ img }}"
+                            loading="lazy"
+                            style="max-width:760px; height:auto; border-radius:8px;"
+                        />
+                        <figcaption>{{ img.replace('_box_month_hour_', ' — năm ').replace('.png','') }}</figcaption>
+                        </figure>
+                    {% endfor %}
+                    </div>
+                </section>
+                {% else %}
+                    <p style="opacity:.7">Không có ảnh boxplot theo năm cho biến <b>{{ target }}</b>.</p>
+            {% endif %}
+
+            
+        {% endif %}
+      
+
+      {% if multi_payload.top_pairs is defined and multi_payload.top_pairs %}
+      <div class="stats">
+        <h3>Top liên quan với {{ target }}</h3>
+        <ul>
+          {% for r in multi_payload.top_pairs %}
+            <li>{{ r.var }} — |corr| = {{ '%.3f'|format(r.abs_corr) }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+  </div>
+</body>
+</html>
