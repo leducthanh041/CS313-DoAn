@@ -183,6 +183,3 @@ def eda_home():
 @app.route("/", methods=["GET"]) 
 def console_home():
     return render_template("console.html")
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True, use_reloader=False)
