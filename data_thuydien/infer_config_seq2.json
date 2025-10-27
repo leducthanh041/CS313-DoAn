@@ -1,0 +1,24 @@
+{
+  "time_col": "thoi_diem",
+  "target_col": "muc_nuoc_thuong_luu_m",
+  "inflow_col": "luu_luong_den_ho_m3_s_capped",
+  "feature_weather": [
+    "temp_c",
+    "rh_pct",
+    "precip_mm",
+    "cloud_pct"
+  ],
+  "lookback_days": 28,
+  "steps_per_day": 24,
+  "median_step_hours": 1.0,
+  "lookback_steps": 672,
+  "stride": 1,
+  "seq_feat_dim": 2,
+  "train_seq_L_eff": 672,
+  "scaler_paths": {
+    "seq_scaler": "data_thuydien/seq_scaler_seq2.pkl",
+    "w_scaler": "data_thuydien/w_scaler_seq2.pkl",
+    "y_scaler": "data_thuydien/y_scaler_seq2.pkl"
+  },
+  "model_path": "./data_thuydien/cnn_lstm_model_seq2_oomsafe.pth"
+}
