@@ -312,24 +312,23 @@
             {% endif %}
 
             {% if target_box_files %}
-                <section class="panel">
-                    <h3>Phân phối theo tháng/giờ theo từng năm — target: <code>{{ target }}</code></h3>
-                    <div class="plot-grid">
-                    {% for img in target_box_files %}
-                        <figure class="plot-card">
-                        <img
-                            src="{{ url_for('static', filename='eda_plots/' ~ img) }}?v={{ target }}"
-                            alt="{{ img }}"
-                            loading="lazy"
-                            style="max-width:760px; height:auto; border-radius:8px;"
-                        />
-                        <figcaption>{{ img.replace('_box_month_hour_', ' — năm ').replace('.png','') }}</figcaption>
-                        </figure>
-                    {% endfor %}
-                    </div>
-                </section>
-                {% else %}
-                    <p style="opacity:.7">Không có ảnh boxplot theo năm cho biến <b>{{ target }}</b>.</p>
+            <section class="panel">
+              <h3>Phân phối theo tháng/giờ theo từng năm — target: <code>{{ target }}</code></h3>
+              <div class="plot-grid">
+                {% for img in target_box_files %}
+                <figure class="plot-card">
+                  <img
+                    src="{{ url_for('static', filename='eda_plots/' ~ img) }}?v={{ target }}"
+                    alt="{{ img }}"
+                    loading="lazy"
+                  />
+                  <figcaption>{{ img.replace('_box_month_hour_', ' — năm ').replace('.png','') }}</figcaption>
+                </figure>
+                {% endfor %}
+              </div>
+            </section>
+            {% else %}
+            <p style="opacity:.7">Không có ảnh boxplot theo năm cho biến <b>{{ target }}</b>.</p>
             {% endif %}
 
             
