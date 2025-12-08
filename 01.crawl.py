@@ -280,13 +280,13 @@ def crawl_range_to_csv(
 # ============ Run ============
 if __name__ == "__main__":
     crawl_range_to_csv(
-        start_date="01/01/2022",
-        end_date="17/10/2025",
+        start_date="18/10/2025",
+        end_date="1/12/2025",
         # end_date="01/01/2022",
         # hours=[0],
         hours=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
         hc="3-27-44",
-        out_csv="data_thuydien_new.csv",
+        out_csv="data_thuydien_mo_rong.csv",
         flush_every=120,
         polite_delay=0,
         overwrite=True
