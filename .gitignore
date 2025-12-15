@@ -2,4 +2,4 @@
 *.pkl
 *.pth
 .venv
-*.png
+#*.png
