@@ -4,39 +4,38 @@
     "type": "split",
     "children": [
       {
-        "id": "d89fdc3c7f247fdd",
+        "id": "6f9ccfdc1c726c7b",
         "type": "tabs",
         "children": [
           {
-            "id": "627a62c9ffe9d557",
+            "id": "4c1bc6fde202d446",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "00. Script seminar CS313.md",
+                "file": "01.EDA-Sông Ba Hạ.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "00. Script seminar CS313"
+              "title": "01.EDA-Sông Ba Hạ"
             }
           },
           {
-            "id": "7d600e73b04229a7",
+            "id": "c96f151529326259",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "01.EDA.md",
+                "file": "01.EDA-Hoà Bình.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "01.EDA"
+              "title": "01.EDA-Hoà Bình"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -109,7 +108,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "01.EDA.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -119,7 +117,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Liên kết đến của 01.EDA"
+              "title": "Liên kết đến"
             }
           },
           {
@@ -128,12 +126,11 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "01.EDA.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Liên kết đi ra từ 01.EDA"
+              "title": "Liên kết đi ra"
             }
           },
           {
@@ -171,13 +168,12 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "01.EDA.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Đề cương của 01.EDA"
+              "title": "Đề cương"
             }
           }
         ]
@@ -198,9 +194,14 @@
       "bases:Create new base": false
     }
   },
-  "active": "7d600e73b04229a7",
+  "active": "4c1bc6fde202d446",
   "lastOpenFiles": [
-    "00. Script seminar CS313.md",
-    "01.EDA.md"
+    "01.EDA-Hoà Bình.md",
+    "01.EDA-Sông Ba Hạ.md",
+    "Pasted image 20251218112929.png",
+    "01.EDA-Trị An.md",
+    "Pasted image 20251218110938.png",
+    "Pasted image 20251218105737.png",
+    "00. Script seminar CS313.md"
   ]
 }
