@@ -2,3 +2,5 @@
 *.pkl
 *.pth
 .venv
+# *.png
+hydro_streamlit_demo
