@@ -4,3 +4,5 @@
 .venv
 # *.png
 hydro_streamlit_demo
+*.docx
+tree.py
